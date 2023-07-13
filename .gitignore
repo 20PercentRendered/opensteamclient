@@ -1,4 +1,4 @@
 build
 .cache
-CMakeLists.txt.user
-tools/generated_interfaces
+bin
+obj

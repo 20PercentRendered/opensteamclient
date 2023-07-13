@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClientUI.ViewModels"
+        xmlns:views="using:ClientUI.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" Width="300" Height="80"
+        x:Class="ClientUI.Views.ProgressWindow"
+        x:DataType="vm:ProgressWindowViewModel"
+        Icon="/Assets/opensteam-logo.ico"
+        Title="Progress (Generic)">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:ProgressWindowViewModel/>
+    </Design.DataContext>
+
+    <StackPanel>
+        <TextBlock Text="{Binding Operation}" />
+        <TextBlock Text="{Binding SubOperation}" />
+        <ProgressBar IsIndeterminate="{Binding Throbber}" Minimum="{Binding InitialProgress}" Value="{Binding Progress}" Maximum="{Binding MaxProgress}" />
+    </StackPanel>
+    
+</Window>

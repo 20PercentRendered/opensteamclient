@@ -3,10 +3,10 @@ import path from "path";
 import { SteamworksDumper } from "./steamworksdumper";
 import { CLIENT_MAIN_BINARIES_NAME, ClientManifest } from "./manifest"
 import { Project } from "./project";
-import { Difference, execWrap, find32BitELFBinaryRecursive, mkdir } from "./util";
+import { Difference, execWrap, find32BitELFBinaryRecursive, mkdir, rm } from "./util";
 import { ClientDifference, ClientDump } from './dump';
-import { VirtualHeader } from './cpp/virtualheader';
-import { VersionInfo } from './cpp/versioninfo';
+import { VirtualHeader } from './csharp/virtualheader';
+import { VersionInfo } from './csharp/versioninfo';
     
 export async function Main(): Promise<number> {
     console.info("Starting OSWUpdater");
@@ -35,11 +35,18 @@ export async function Main(): Promise<number> {
     } 
 
     console.info("Reading current manifest..")
-    var oldManifestFilePath: string = `${projectDir}/steam_client_ubuntu12.vdf`
+
+    mkdir(`${projectDir}/Manifests`);
+
+    var oldManifestFilePathWin32: string = `${projectDir}/Manifests/steam_client_win32.vdf`
+    var oldManifestFilePathOSX: string = `${projectDir}/Manifests/steam_client_osx.vdf`
+    var oldManifestFilePath: string = `${projectDir}/Manifests/steam_client_ubuntu12.vdf`
     var oldManifest: ClientManifest = ClientManifest.LoadFromFile(oldManifestFilePath);
     
-    console.info("Downloading latest client manifest..")
-    var newManifest: ClientManifest = await ClientManifest.UseNewest();
+    console.info("Downloading latest client manifests..")
+    var newManifestWin32: ClientManifest = await ClientManifest.UseNewest("win32");
+    var newManifestOSX: ClientManifest = await ClientManifest.UseNewest("osx");
+    var newManifest: ClientManifest = await ClientManifest.UseNewest("ubuntu12");
 
     console.info("Creating versioned work dir...")
     var versionedWorkDir: string = `${workDir}/${newManifest.version}`;
@@ -49,6 +56,23 @@ export async function Main(): Promise<number> {
     mkdir(`${versionedWorkDir}/dumped_data`)
 
     // Save the manifest on disk 
+    
+    var newManifestFilePathWin32: string = `${versionedWorkDir}/steam_client_win32.vdf`;
+    {
+        if (!fs.existsSync(newManifestFilePathWin32)) {
+            console.info(`Saving Win32 manifest to ${newManifestFilePathWin32}`)
+            newManifestWin32.SaveManifestToFile(newManifestFilePathWin32);
+        } 
+    }
+
+    var newManifestFilePathOSX: string = `${versionedWorkDir}/steam_client_osx.vdf`;
+    {
+        if (!fs.existsSync(newManifestFilePathOSX)) {
+            console.info(`Saving OSX manifest to ${newManifestFilePathOSX}`)
+            newManifestOSX.SaveManifestToFile(newManifestFilePathOSX);
+        } 
+    }
+
     var newManifestFilePath: string = `${versionedWorkDir}/steam_client_ubuntu12.vdf`;
     {
         if (!fs.existsSync(newManifestFilePath)) {
@@ -140,33 +164,14 @@ export async function Main(): Promise<number> {
     printDifference(diff.methods, "methods", "name", "arg count, other changes are undetectable");
     printDifference(diff.callbacks, "callbacks", "name", "size");
     printDifference(diff.eMsgs, "EMsgs", "name", "name");
-
-    if (true) {
-        console.info(`IClientEngine interfaces offset changed %n -> %n`)
-    } else {
-        console.info(`IClientEngine interfaces offset unchanged %n -> %n`)
-    }
-
-// OLD METHOD
-    // console.info("Reading previous headers for type information...")
-    // var header: VirtualHeader = await VirtualHeader.LoadFromFile(`${projectDir}/include/opensteamworks/IClientDepotBuilder.h`, "IClientDepotBuilder");
-    // console.info("Generating new headers...")
-    // var clientuser = newDump.interfaces.find((val, i, obj) => { return val.name == "IClientDepotBuilder" });
-    // if (!clientuser) {
-    //     console.log("didint find IClientDepotBuilder");
-    // } else {
-    //     header.PatchWithDump(clientuser)
-    // }
-    // await header.OverwriteOldFile();
-// END OLD METHOD
     
     console.info("Generating new headers...")
     for (const iface of newDump.interfaces) {
         const index = newDump.interfaces.indexOf(iface);
 
-        if (fs.existsSync(`${projectDir}/include/opensteamworks/${iface.name}.h`)) {
+        if (fs.existsSync(`${projectDir}/OpenSteamworks/Generated/${iface.name}.cs`)) {
             console.info(`${iface.name}: Reading previous header for type information (1/3) (header ${index}/${newDump.interfaces.length})`)
-            var header: VirtualHeader = await VirtualHeader.LoadFromFile(`${projectDir}/include/opensteamworks/${iface.name}.h`, iface.name);
+            var header: VirtualHeader = await VirtualHeader.LoadFromFile(`${projectDir}/OpenSteamworks/Generated/${iface.name}.cs`, iface.name);
 
             console.info(`${iface.name}: Patching header with new info (2/3) (header ${index}/${newDump.interfaces.length})`)
             header.PatchWithDump(iface);
@@ -175,7 +180,7 @@ export async function Main(): Promise<number> {
             await header.OverwriteOldFile();
         } else {
             console.info(`${iface.name}: Creating new header based on dump (1/2) (header ${index}/${newDump.interfaces.length})`)
-            var header: VirtualHeader = await VirtualHeader.CreateFromDump(`${projectDir}/include/opensteamworks/${iface.name}.h`, iface);
+            var header: VirtualHeader = await VirtualHeader.CreateFromDump(`${projectDir}/OpenSteamworks/Generated/${iface.name}.cs`, iface);
 
             console.info(`${iface.name}: Writing new header to disk (2/2) (header ${index}/${newDump.interfaces.length})`)
             await header.OverwriteOldFile();
@@ -183,16 +188,28 @@ export async function Main(): Promise<number> {
         
     }
     
-    console.info("Updating installed manifest...")
-    fs.rmSync(oldManifestFilePath);
+    console.info("Updating installed manifests...")
+    rm(oldManifestFilePath);
     fs.cpSync(newManifestFilePath, oldManifestFilePath)
+
+    rm(oldManifestFilePathWin32);
+    fs.cpSync(newManifestFilePathWin32, oldManifestFilePathWin32)
+
+    rm(oldManifestFilePathOSX);
+    fs.cpSync(newManifestFilePathOSX, oldManifestFilePathOSX)
+
+    
     console.info("Copying new dumped_data to project dir...")
     fs.rmSync(oldDumpedDataPath, {recursive: true, force: true});
     fs.cpSync(`${versionedWorkDir}/dumped_data`, oldDumpedDataPath, { recursive: true });
     
-    console.info("Generating new version.h")
-    var versionFilePath = `${projectDir}/include/opensteamworks/version.h`;
-    fs.rmSync(versionFilePath);
+    console.info("Generating new VersionInfo.cs")
+    var versionFilePath = `${projectDir}/OpenSteamworks/Generated/VersionInfo.cs`;
+    
+    if (fs.existsSync(versionFilePath)) {
+        fs.rmSync(versionFilePath);
+    }
+
     VersionInfo.CreateVersionFileFromManifest(versionFilePath, newManifest);
 
     console.info("Done")

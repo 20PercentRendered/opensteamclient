@@ -8,6 +8,12 @@ export function mkdir(path: string, recursive: boolean = false): void {
     }
 }
 
+export function rm(path: string): void {
+    if (fs.existsSync(path)){
+        fs.rmSync(path);
+    }
+}
+
 export function execWrap(command: string, options: ExecOptions): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         var exechandle = exec(command, options, ((error, stdout, stderr) => {
@@ -59,6 +65,10 @@ export interface Difference<T> {
     additions: T[];
     removals: T[];
     changes: T[];
+}
+
+export function replaceRange(s: string, start: number, end: number, substitute: string) {
+    return s.substring(0, start) + substitute + s.substring(end);
 }
 
 // If you pass objects to this function, use comparer or it will give false results

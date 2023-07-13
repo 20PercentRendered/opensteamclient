@@ -1,0 +1,112 @@
+<Project>
+    <Import Project="Sdk.props" Sdk="Microsoft.Build.NoTargets" Version="3.7.0" />
+
+    <PropertyGroup>
+        <!-- This doesn't actually do anything. It's needed to trick dotnet into allowing us to add this as a dependency. -->
+        <TargetFramework>net7.0</TargetFramework>
+        <!-- This is needed for this project to be able to be added to the SLN -->
+        <ProjectTypeGuids>{FD3E9FC9-4DE6-4138-A245-326056A92883}</ProjectTypeGuids>
+        <!-- Defines the directory where CMake will place it's files -->
+        <BaseBuildDirectory>./Build</BaseBuildDirectory>
+        <!-- Where CMake will place the build outputs -->
+        <BaseNativeBuildOutput>./Natives</BaseNativeBuildOutput>
+    </PropertyGroup>
+
+    <!-- Determine OS -->
+    <Choose>
+        <When Condition=" '$([MSBuild]::IsOsPlatform(Linux))' ">
+            <PropertyGroup>
+                <CurrentOS>linux</CurrentOS> 
+            </PropertyGroup>
+        </When>
+        <When Condition=" '$([MSBuild]::IsOsPlatform(OSX))' ">
+            <PropertyGroup>
+                <CurrentOS>osx</CurrentOS>
+            </PropertyGroup>
+        </When>
+        <When Condition=" '$([MSBuild]::IsOsPlatform(Windows))' ">
+            <PropertyGroup>
+                <CurrentOS>windows</CurrentOS>
+            </PropertyGroup>
+        </When>
+    </Choose>
+
+    <!-- Determine if cross compiling to windows is possible -->
+    <PropertyGroup>
+        <CanCrossCompile>false</CanCrossCompile>
+        <CanCrossCompile Condition="Exists('/usr/bin/x86_64-w64-mingw32-gcc')">true</CanCrossCompile>
+    </PropertyGroup>
+    
+    <!-- Define targets you want to override after this line -->
+    <Import Project="Sdk.targets" Sdk="Microsoft.Build.NoTargets" Version="3.7.0" />
+
+    <!-- This runs everytime, but it's fine since CMake quits fast if the output is up to date -->
+    <Target Name="Build">
+        <PropertyGroup>
+            <WillCrossCompile>false</WillCrossCompile>
+            <WillCrossCompile Condition=" '$(CanCrossCompile)' == 'true' And '$(CurrentOS)' != 'windows' ">true</WillCrossCompile>
+        </PropertyGroup>
+        <ItemGroup>
+            <TargetOSList Include="$(CurrentOS)">
+            </TargetOSList>
+
+            <!-- Cross compile if available -->
+            <TargetOSList Condition=" '$(CanCrossCompile)' == 'true' And '$(CurrentOS)' != 'windows' " Include="windows">
+            </TargetOSList>
+        </ItemGroup>
+        <MSBuild Projects="$(MSBuildProjectFile)"
+            BuildInParallel="true"
+            Properties="TargetOS=%(TargetOSList.Identity);WillCrossCompile=$(WillCrossCompile)"
+            Targets="BuildNativeForTarget"/>
+
+        <ItemGroup>
+            <!-- This is responsible for copying the output binaries to wherever needed -->
+            <Content Include="$(BaseNativeBuildOutput)/**/*">
+                <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            </Content>
+        </ItemGroup>
+    </Target>
+    <Target Name="BuildNativeForTarget">
+        <Message Importance="High" Text="Attempting to build natives for '$(TargetOS)'"/>
+
+        <PropertyGroup>
+            <IsThisBuildCrossCompile>false</IsThisBuildCrossCompile>
+            <IsThisBuildCrossCompile Condition=" '$(WillCrossCompile)' == 'true' And '$(TargetOS)' == 'windows' ">true</IsThisBuildCrossCompile>
+            <BuildDirectory>$(BaseBuildDirectory)/$(TargetOS)</BuildDirectory>
+            <NativeBuildOutput>$(BaseNativeBuildOutput)/$(TargetOS)</NativeBuildOutput>
+        </PropertyGroup>
+
+        <Message Importance="High" Text="CanCrossCompile: '$(CanCrossCompile)'"/>
+        <Message Importance="High" Text="WillCrossCompile: '$(WillCrossCompile)'"/>
+        <Message Importance="High" Text="ThisBuildCrossCompile: '$(IsThisBuildCrossCompile)'"/>
+
+        <MakeDir Directories="$(BuildDirectory)"/>
+        <MakeDir Directories="$(NativeBuildOutput)"/>
+
+        <!-- TODO: this switching method is a hack. find out how to append strings to generate the final command. maybe even make a C# based task -->
+        <!-- Run CMake to generate toolchain files -->
+        <Exec Condition="'$(IsThisBuildCrossCompile)' != 'true'" Command='cmake &quot;$(MSBuildThisFileDirectory.TrimEnd("\"))&quot; -DBUILD_PLATFORM_TARGET=$(TargetOS) -DNATIVE_OUTPUT_FOLDER=&quot;$([System.IO.Path]::GetFullPath("$(NativeBuildOutput)"))&quot;' WorkingDirectory="$(BuildDirectory)"/>
+
+        <!-- Run CMake to generate cross compile files -->
+        <Exec Condition="'$(IsThisBuildCrossCompile)' == 'true'" Command='cmake &quot;$(MSBuildThisFileDirectory.TrimEnd("\"))&quot; -DCMAKE_TOOLCHAIN_FILE="$(MSBuildThisFileDirectory)/cmake/MingW.cmake" -DBUILD_PLATFORM_TARGET=$(TargetOS) -DNATIVE_OUTPUT_FOLDER=&quot;$([System.IO.Path]::GetFullPath("$(NativeBuildOutput)"))&quot;' WorkingDirectory="$(BuildDirectory)"/>
+
+        <!-- Run CMake to build natives -->
+        <Exec Command="cmake --build ." WorkingDirectory="$(BuildDirectory)" />
+
+        <!-- For some reason, MingW always wants to build a .dll.a, AS WELL as a normal .dll. We don't need to ship those, so delete them if this was a cross compile -->
+        <!-- Wildcards aren't supported in the Delete task. WTF Microsoft??? Do this hack to compensate. -->
+        <ItemGroup Condition="'$(IsThisBuildCrossCompile)' == 'true'">
+            <ExcessFiles Include="$(NativeBuildOutput)/*.dll.a"/>
+        </ItemGroup>
+        <Delete Condition="'$(IsThisBuildCrossCompile)' == 'true'" Files="@(ExcessFiles)" />
+        
+        <Message Importance="High" Text="Finished building natives for '$(TargetOS)'"/>
+    </Target>
+
+    <Target Name="Clean">
+        <RemoveDir Directories="$(BaseBuildDirectory)"/>
+        <RemoveDir Directories="$(BaseNativeBuildOutput)"/>
+    </Target>
+
+    <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
+</Project>

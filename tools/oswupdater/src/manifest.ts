@@ -97,12 +97,12 @@ export class ClientManifest {
         return this.LoadFromString(fs.readFileSync(path).toString());
     }
 
-    static UseNewest(): Promise<ClientManifest> {
+    static UseNewest(platform: string): Promise<ClientManifest> {
         return new Promise<ClientManifest>((resolve, reject) => {
 
             // This function is a sin against everything javascript
             var downloadPromise = new Promise<Buffer>((resolve, reject) => {
-                https.get("https://media.steampowered.com/client/steam_client_ubuntu12", (res) => {
+                https.get("https://media.steampowered.com/client/steam_client_"+platform, (res) => {
                     const data: any = [];
                     res.on('data', (chunk) => {
                     data.push(chunk);

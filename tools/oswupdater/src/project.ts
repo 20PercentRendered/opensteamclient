@@ -7,15 +7,15 @@ export namespace Project {
         if (cachedProjectDir != "")
             return cachedProjectDir;
 
-        // Go up recursively until we find CMakeLists.txt
+        // Go up recursively until we find OpenSteamClient.sln
         var found: boolean = false;
         var currentPath: string = __dirname;
         while (!found) {
-            found = fs.existsSync(currentPath + "/CMakeLists.txt");
+            found = fs.existsSync(currentPath + "/OpenSteamClient.sln");
             if (!found) {
                 currentPath = path.resolve(currentPath + "/../");
                 if (currentPath == "/") {
-                    throw "Couldn't find CMakeLists.txt in parent directories of this script. "
+                    throw "Couldn't find OpenSteamClient.sln in parent directories of this script. "
                 }
             }
         }

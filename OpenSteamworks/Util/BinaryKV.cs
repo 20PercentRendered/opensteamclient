@@ -1,0 +1,1 @@
+namespace OpenSteamworks.Util;

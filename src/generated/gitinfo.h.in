@@ -1,3 +1,0 @@
-#pragma once
-#define GIT_COMMIT_HASH "@GIT_COMMIT_HASH@"
-#define GIT_BRANCH_NAME "@GIT_BRANCH_NAME@"

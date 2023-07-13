@@ -1,3 +1,3 @@
-[submodule "ext/SteamDatabase/Protobufs"]
-	path = ext/SteamDatabase/Protobufs
-	url = https://github.com/SteamDatabase/Protobufs.git
+[submodule "Native/steamutl/MiniUTL"]
+	path = Native/steamutl/MiniUTL
+	url = https://github.com/FWGS/MiniUTL.git

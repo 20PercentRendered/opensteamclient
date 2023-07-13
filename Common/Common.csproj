@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac" Version="7.0.1" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="7.0.8" />
+    <PackageReference Include="ValveKeyValue" Version="0.9.0.267" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenSteamworks\OpenSteamworks.csproj" />
+    <ProjectReference Include="..\Native\Native.csproj" Targets="Build" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\Manifests\*.vdf" />
+  </ItemGroup>
+
+</Project>
